@@ -4,14 +4,16 @@
 
 module Main (main) where
 
-import Data.Aeson
-import Data.Aeson.Types
+import qualified Data.Aeson as JSON
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Database.PostgreSQL.Simple
 import Database.PostgreSQL.Simple.Newtypes (Aeson (..))
+import Database.PostgreSQL.Simple.FromField
+import Database.PostgreSQL.Simple.ToField
+
 import GHC.Generics
 import Numeric.LinearAlgebra.Data
 
@@ -41,13 +43,16 @@ data Measurement
 data GeometryEntity
 --  = Point   { point :: Vector Double }
   = Plane   { point :: Vector Double, normal :: Vector Double
-  } deriving (Eq, Show, Generic, ToJSON)
+  } deriving (Eq, Show, Generic, JSON.FromJSON, JSON.ToJSON, FromField)
 
 instance FromRow Measurement
 instance ToRow   Measurement
 
 instance ToField GeometryEntity where
-  toJSONField
+  toField = toField . JSON.encode
+
+--instance FromField GeometryEntity where
+--  fromField = fromField . JSON.decode
 
 midLevel :: IO ()
 midLevel = do
