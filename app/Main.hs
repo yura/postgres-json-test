@@ -18,7 +18,7 @@ import GHC.Generics
 import Numeric.LinearAlgebra.Data
 
 main :: IO ()
-main = lowLevel
+main = midLevel
 
 lowLevel :: IO ()
 lowLevel = do
@@ -43,16 +43,16 @@ data Measurement
 data GeometryEntity
 --  = Point   { point :: Vector Double }
   = Plane   { point :: Vector Double, normal :: Vector Double
-  } deriving (Eq, Show, Generic, JSON.FromJSON, JSON.ToJSON, FromField)
+  } deriving (Eq, Show, Generic, JSON.FromJSON, JSON.ToJSON)
 
 instance FromRow Measurement
 instance ToRow   Measurement
 
+instance FromField GeometryEntity where
+  fromField = fromJSONField
+
 instance ToField GeometryEntity where
   toField = toField . JSON.encode
-
---instance FromField GeometryEntity where
---  fromField = fromField . JSON.decode
 
 midLevel :: IO ()
 midLevel = do
@@ -66,5 +66,9 @@ midLevel = do
   
   _ <- executeMany conn "INSERT INTO measurements (id, measurement_type, entity, created_at, updated_at) VALUES (?, ?, ?, ?, ?)" [measurement]
 
-  return ()
+  ms <- findAll conn 
+  putStrLn $ show ms
+
+findAll :: Connection -> IO [Measurement]
+findAll conn = query_ conn "SELECT * FROM measurements"
 
