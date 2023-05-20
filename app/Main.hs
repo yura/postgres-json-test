@@ -41,8 +41,8 @@ data Measurement
   } deriving (Eq, Show, Generic)
 
 data GeometryEntity
---  = Point   { point :: Vector Double }
-  = Plane   { point :: Vector Double, normal :: Vector Double
+  = Point   { point :: Vector Double }
+  | Plane   { point :: Vector Double, normal :: Vector Double
   } deriving (Eq, Show, Generic, JSON.FromJSON, JSON.ToJSON)
 
 instance FromRow Measurement
@@ -54,21 +54,36 @@ instance FromField GeometryEntity where
 instance ToField GeometryEntity where
   toField = toField . JSON.encode
 
-midLevel :: IO ()
-midLevel = do
+createMeasurement :: GeometryEntity -> Text -> IO (UUID)
+createMeasurement e mt = do
   conn <- connectPostgreSQL "dbname=bricky"
- 
-  let plane = Plane (vector [1700, 745, -1324.547060451625]) (vector [-3.4972561521079736e-3,-4.4964721955685905e-3,0.9999837753369807])
 
   uuid <- nextRandom
   now <- getCurrentTime
-  let measurement = Measurement uuid "floor" plane now now
-  
+  let measurement = Measurement uuid mt e now now
+
   _ <- executeMany conn "INSERT INTO measurements (id, measurement_type, entity, created_at, updated_at) VALUES (?, ?, ?, ?, ?)" [measurement]
 
-  ms <- findAll conn 
-  putStrLn $ show ms
+  close conn
+  return uuid
 
-findAll :: Connection -> IO [Measurement]
-findAll conn = query_ conn "SELECT * FROM measurements"
+findMeasurements :: IO [Measurement]
+findMeasurements = do
+  conn <- connectPostgreSQL "dbname=bricky"
+  ms <- query_ conn "SELECT * FROM measurements"
+  close conn
+  return ms
+
+midLevel :: IO ()
+midLevel = do
+  let plane = Plane (vector [1700, 745, -1324.547060451625]) (vector [-3.4972561521079736e-3,-4.4964721955685905e-3,0.9999837753369807])
+  planeUUID <- createMeasurement plane "floor"
+  putStrLn $ "Plane UUID: " <> show planeUUID
+
+  let point = Point (vector [1700, 745, -1324.547060451625])
+  pointUUID <- createMeasurement point "some point"
+  putStrLn $ "Point UUID: " <> show pointUUID
+
+  ms <- findMeasurements
+  putStrLn $ show ms
 
