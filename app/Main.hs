@@ -1,10 +1,12 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main (main) where
 
 import qualified Data.Aeson as JSON
+import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.UUID (UUID)
@@ -17,8 +19,11 @@ import Database.PostgreSQL.Simple.ToField
 import GHC.Generics
 import Numeric.LinearAlgebra.Data
 
+type Database = ByteString
+
 main :: IO ()
-main = midLevel
+main = do
+  let ?dbName = "bricky" in midLevel
 
 lowLevel :: IO ()
 lowLevel = do
@@ -54,9 +59,9 @@ instance FromField GeometryEntity where
 instance ToField GeometryEntity where
   toField = toField . JSON.encode
 
-createMeasurement :: GeometryEntity -> Text -> IO (UUID)
+createMeasurement :: (?dbName :: Database) => GeometryEntity -> Text -> IO (UUID)
 createMeasurement e mt = do
-  conn <- connectPostgreSQL "dbname=bricky"
+  conn <- connectPostgreSQL $ "dbname=" <> ?dbName
 
   uuid <- nextRandom
   now <- getCurrentTime
@@ -67,14 +72,14 @@ createMeasurement e mt = do
   close conn
   return uuid
 
-findMeasurements :: IO [Measurement]
+findMeasurements :: (?dbName :: Database) => IO [Measurement]
 findMeasurements = do
-  conn <- connectPostgreSQL "dbname=bricky"
+  conn <- connectPostgreSQL $ "dbname=" <> ?dbName
   ms <- query_ conn "SELECT * FROM measurements"
   close conn
   return ms
 
-midLevel :: IO ()
+midLevel :: (?dbName :: Database) => IO ()
 midLevel = do
   let plane = Plane (vector [1700, 745, -1324.547060451625]) (vector [-3.4972561521079736e-3,-4.4964721955685905e-3,0.9999837753369807])
   planeUUID <- createMeasurement plane "floor"
