@@ -26,17 +26,6 @@ main :: IO ()
 main = do
   let ?dbName = "bricky" in midLevel
 
-lowLevel :: IO ()
-lowLevel = do
-  conn <- connectPostgreSQL "dbname=bricky"
-
-  uuid <- nextRandom
-  now <- getCurrentTime
-
-  _ <- executeMany conn "INSERT INTO measurements (id, measurement_type, entity, created_at, updated_at) VALUES (?, ?, ?, ?, ?)" [(uuid, "floor" :: String, "{\"a\":\"b\"}" :: String, now, now)]
-
-  return ()
-
 data Config = Config Text
   deriving (Eq, Show, Generic, JSON.FromJSON, JSON.ToJSON)
 
