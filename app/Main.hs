@@ -20,6 +20,7 @@ import GHC.Generics
 import Numeric.LinearAlgebra.Data
 
 type Database = ByteString
+type Collection = ByteString
 
 main :: IO ()
 main = do
@@ -36,14 +37,38 @@ lowLevel = do
 
   return ()
 
+data Config = Config Text
+  deriving (Eq, Show, Generic, JSON.FromJSON, JSON.ToJSON)
+
+data Position 
+  = Position 
+  { x :: Double
+  , y :: Double
+  , z :: Double
+  , w :: Double
+  , p :: Double
+  , r :: Double
+  , config :: Config
+  } deriving (Eq, Show, Generic, JSON.FromJSON, JSON.ToJSON)
+
 data Measurement
   = Measurement
-  { id              :: UUID
-  , measurementType :: Text
-  , entity          :: GeometryEntity
-  , createdAt       :: UTCTime
-  , updatedAt       :: UTCTime
-  } deriving (Eq, Show, Generic)
+    { id              :: UUID
+    , measurementType :: Text
+    , entity          :: GeometryEntity
+    , createdAt       :: UTCTime
+    , updatedAt       :: UTCTime
+    }
+  {-
+  | Distances
+    { id              :: UUID
+    , measurementType :: Text
+    , distances       :: [(Position, Maybe Double)]
+    , createdAt       :: UTCTime
+    , updatedAt       :: UTCTime
+    }
+  -}
+  deriving (Eq, Show, Generic)
 
 data GeometryEntity
   = Point   { point :: Vector Double }
@@ -59,7 +84,7 @@ instance FromField GeometryEntity where
 instance ToField GeometryEntity where
   toField = toField . JSON.encode
 
-createMeasurement :: (?dbName :: Database) => GeometryEntity -> Text -> IO (UUID)
+createMeasurement :: (?dbName :: Database) => GeometryEntity -> Text -> IO Measurement
 createMeasurement e mt = do
   conn <- connectPostgreSQL $ "dbname=" <> ?dbName
 
@@ -70,7 +95,17 @@ createMeasurement e mt = do
   _ <- executeMany conn "INSERT INTO measurements (id, measurement_type, entity, created_at, updated_at) VALUES (?, ?, ?, ?, ?)" [measurement]
 
   close conn
-  return uuid
+  return measurement
+
+countQuery :: Collection -> Query
+countQuery c | c == "measurements" = "SELECT COUNT(*) FROM measurements"
+
+countAll :: (?dbName :: Database) => Collection -> IO Int
+countAll collection = do
+  conn <- connectPostgreSQL $ "dbname=" <> ?dbName
+  [Only i] <- query_ conn $ countQuery collection
+  close conn
+  return i
 
 findMeasurements :: (?dbName :: Database) => IO [Measurement]
 findMeasurements = do
@@ -82,12 +117,15 @@ findMeasurements = do
 midLevel :: (?dbName :: Database) => IO ()
 midLevel = do
   let plane = Plane (vector [1700, 745, -1324.547060451625]) (vector [-3.4972561521079736e-3,-4.4964721955685905e-3,0.9999837753369807])
-  planeUUID <- createMeasurement plane "floor"
-  putStrLn $ "Plane UUID: " <> show planeUUID
+  plane' <- createMeasurement plane "floor"
+  putStrLn $ "Plane UUID: " <> show plane'
 
   let point = Point (vector [1700, 745, -1324.547060451625])
-  pointUUID <- createMeasurement point "some point"
-  putStrLn $ "Point UUID: " <> show pointUUID
+  point' <- createMeasurement point "some point"
+  putStrLn $ "Point UUID: " <> show point'
+
+  count <- countAll "measurements"
+  putStrLn $ "Found: " <> show count <> " measurements"
 
   ms <- findMeasurements
   putStrLn $ show ms
