@@ -40,23 +40,17 @@ data Position
   , config :: Config
   } deriving (Eq, Show, Generic, JSON.FromJSON, JSON.ToJSON)
 
+data Entity = Entity GeometryEntity | Distances [(Position, Maybe Double)]
+  deriving (Eq, Show, Generic, JSON.FromJSON, JSON.ToJSON)
+
 data Measurement
   = Measurement
     { id              :: UUID
     , measurementType :: Text
-    , entity          :: GeometryEntity
+    , entity          :: Entity 
     , createdAt       :: UTCTime
     , updatedAt       :: UTCTime
     }
-  {-
-  | Distances
-    { id              :: UUID
-    , measurementType :: Text
-    , distances       :: [(Position, Maybe Double)]
-    , createdAt       :: UTCTime
-    , updatedAt       :: UTCTime
-    }
-  -}
   deriving (Eq, Show, Generic)
 
 data GeometryEntity
@@ -67,13 +61,13 @@ data GeometryEntity
 instance FromRow Measurement
 instance ToRow   Measurement
 
-instance FromField GeometryEntity where
+instance FromField Entity where
   fromField = fromJSONField
 
-instance ToField GeometryEntity where
+instance ToField Entity where
   toField = toField . JSON.encode
 
-createMeasurement :: (?dbName :: Database) => GeometryEntity -> Text -> IO Measurement
+createMeasurement :: (?dbName :: Database) => Entity -> Text -> IO Measurement
 createMeasurement e mt = do
   conn <- connectPostgreSQL $ "dbname=" <> ?dbName
 
@@ -105,13 +99,17 @@ findMeasurements = do
 
 midLevel :: (?dbName :: Database) => IO ()
 midLevel = do
-  let plane = Plane (vector [1700, 745, -1324.547060451625]) (vector [-3.4972561521079736e-3,-4.4964721955685905e-3,0.9999837753369807])
+  let plane = Entity (Plane (vector [1700, 745, -1324.547060451625]) (vector [-3.4972561521079736e-3,-4.4964721955685905e-3,0.9999837753369807]))
   plane' <- createMeasurement plane "floor"
-  putStrLn $ "Plane UUID: " <> show plane'
+  putStrLn $ "Plane: " <> show plane'
 
-  let point = Point (vector [1700, 745, -1324.547060451625])
+  let point = Entity (Point (vector [1700, 745, -1324.547060451625]))
   point' <- createMeasurement point "some point"
-  putStrLn $ "Point UUID: " <> show point'
+  putStrLn $ "Point: " <> show point'
+
+  let distances = Distances [(Position 1700 0 1000 180 0 0 (Config "NUT 000"), Nothing), (Position 1700 0 900 180 0 0 (Config "NUT 000"), Just 800)]
+  distances' <- createMeasurement distances "distances"
+  putStrLn $ "Distances: " <> show distances'
 
   count <- countAll "measurements"
   putStrLn $ "Found: " <> show count <> " measurements"
